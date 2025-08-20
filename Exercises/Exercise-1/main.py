@@ -1,11 +1,15 @@
 import os
-import requests
 import zipfile
 import io
 from shutil import rmtree
+import asyncio
+import aiohttp
 
 # Remove the downloads directory
-rmtree('downloads')
+try:
+    rmtree('downloads')
+except:
+    pass
 
 domain = "https://divvy-tripdata.s3.amazonaws.com/{file}"
 download_uris = [
@@ -20,31 +24,38 @@ download_uris = [
 
 dl_folder = 'downloads'
 
-def main():
+async def main():
     # your code here
     try:
         os.mkdir(dl_folder)
         print(f"Directory '{dl_folder}' created successfully.")
+
     except FileExistsError:
         print(f"Directory '{dl_folder}' already exists.")
+    async with aiohttp.ClientSession() as session:
+            tasks = [fetch_zip(session, url) for url in download_uris]
+            await asyncio.gather(*tasks)
+    
 
-    try:
-        for link in download_uris:
-            response = requests.get(link)
-            if response.status_code == 200:
-                #Get file name
-                file_name = link.split("/")[-1].replace('.zip', '')
 
-                #Create a BytesIO object
-                zip_file = io.BytesIO(response.content)
+async def fetch_zip(session, url):
+    async with session.get(url) as response:
+        if response.status == 200:
+            #Get file name
+            file_name = url.split("/")[-1].replace('.zip', '')
 
-                #Extract ZIP to CSV
-                with zipfile.ZipFile(zip_file) as z:
-                    z.extract(file_name + '.csv', dl_folder + '/' + file_name)
-            else:
-                print(f"Failed to download {link}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+            #Create a BytesIO object
+            content = await response.read()
+            zip_file = io.BytesIO(content)
+
+            #Extract ZIP to CSV
+            with zipfile.ZipFile(zip_file) as z:
+                z.extract(file_name + '.csv', dl_folder + '/' + file_name)
+        
+        else:
+            print(f"Failed to download {url}")
+            
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
