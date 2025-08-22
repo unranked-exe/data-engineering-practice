@@ -4,27 +4,37 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from shutil import rmtree
 
-
-# Remove the downloads directory
-try:
-    rmtree('downloads')
-except:
-    pass
-
-
 site = 'https://www.ncei.noaa.gov/data/local-climatological-data/access/2021/'
 dl_folder = 'downloads'
-check_time = '15:27'
+check_time = '15:45'
+
+
+def setup_downloads_folder():
+    # Remove the downloads directory and contents
+    try:
+        rmtree(dl_folder)
+    except FileNotFoundError:
+        print(f"Directory '{dl_folder}' does not exist, no need to remove.")
+
+    try:
+        os.mkdir(dl_folder)
+        print(f"Directory '{dl_folder}' created successfully.")
+
+    except FileExistsError:
+        print(f"Directory '{dl_folder}' already exists.")
+
 
 def main():
+    setup_downloads_folder()
     # your code here
-    file_name = find_file_name(check_time)
+    matched_name = find_file_name(check_time)
+    print(matched_name)
+    if matched_name is not None and len(matched_name) > 0:
+        list_of_dfs = [req_file(file_name) for file_name in matched_name]
+        combined_df = pd.concat(list_of_dfs, ignore_index=True)
+        print(combined_df.head())
+        print(combined_df['STATION'].value_counts())
 
-    if file_name:
-        df = req_file(file_name)
-        print(df.head())
-        print(df.info())
-        print(df[df['HourlyDryBulbTemperature'] == df['HourlyDryBulbTemperature'].max()])
     else:
         print("File not found.")
 
@@ -48,7 +58,7 @@ def find_file_name(lookup_time):
         
         df = pd.DataFrame(data)
         
-        match = df[df['dates'].str.contains(lookup_time)]['links'].values[0]
+        match = df[df['dates'].str.contains(lookup_time)]['links'].values
         return match
     except requests.RequestException as e:
         print(f"Error fetching data: {e}")
@@ -66,19 +76,15 @@ def req_file(file_name):
     file_name = dl_folder + '/' + file_name
 
     try:
-        os.mkdir(dl_folder)
-        print(f"Directory '{dl_folder}' created successfully.")
-
-    except FileExistsError:
-        print(f"Directory '{dl_folder}' already exists.")
-
-    try:
         response = requests.get(site_url)
         if response.status_code == 200:
             with open(file_name, 'wb') as file:
                 file.write(response.content)
             print(f"File '{file_name}' downloaded successfully.")
             df = pd.read_csv(file_name)
+            # For Data lineage
+            df['source_file'] = file_name
+            df['download_time'] = pd.Timestamp.now()
             return df
         else:
             print(f"Failed to download file. Status code: {response.status_code}")
