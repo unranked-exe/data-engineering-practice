@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from shutil import rmtree
+import urllib.parse
+
 
 site = 'https://www.ncei.noaa.gov/data/local-climatological-data/access/2021/'
 dl_folder = 'downloads'
@@ -34,6 +36,8 @@ def main():
         combined_df = pd.concat(list_of_dfs, ignore_index=True)
         print(combined_df.head())
         print(combined_df['STATION'].value_counts())
+        #Attempted to implement a parquet save of combined_df but failed due to data not being tidy(differing column types)
+        #combined_df.to_parquet('combined.parquet', engine='pyarrow', index=False, compression='snappy')
 
     else:
         print("File not found.")
@@ -50,12 +54,9 @@ def find_file_name(lookup_time):
         
         #dates = [str(entry.find('td', align='right')) for entry in entries]
         dates = [entry.find('td', align='right').text for entry in entries if entry.find('td', align='right')]
-        #print(dates)
-        raw_date = [*map(html_tag_strip, dates)]
-        #print(raw_date)
-        data = {'links': links, 'dates': raw_date}
 
-        
+        data = {'links': links, 'dates': dates}
+
         df = pd.DataFrame(data)
         
         match = df[df['dates'].str.contains(lookup_time)]['links'].values
@@ -64,35 +65,27 @@ def find_file_name(lookup_time):
         print(f"Error fetching data: {e}")
         return None
 
-
-def html_tag_strip(text):
-    text = text.replace('<td align="right">', '')
-    text = text.replace('</td>', '')
-    return text.strip()
-
-
 def req_file(file_name):
-    site_url = site + file_name
-    file_name = dl_folder + '/' + file_name
+    site_url = urllib.parse.urljoin(site, file_name)
+    file_path = os.path.join(dl_folder, file_name)
 
     try:
         response = requests.get(site_url)
         if response.status_code == 200:
-            with open(file_name, 'wb') as file:
+            with open(file_path, 'wb') as file:
                 file.write(response.content)
-            print(f"File '{file_name}' downloaded successfully.")
-            df = pd.read_csv(file_name)
+            print(f"File '{file_path}' downloaded successfully.")
+            df = pd.read_csv(file_path)
             # For Data lineage
-            df['source_file'] = file_name
+            df['source_file'] = file_path
             df['download_time'] = pd.Timestamp.now()
             return df
         else:
             print(f"Failed to download file. Status code: {response.status_code}")
     except requests.RequestException as e:
         print(f"Error downloading file: {e}")
+        return None
 
-    
-    
 
 if __name__ == "__main__":
     main()
