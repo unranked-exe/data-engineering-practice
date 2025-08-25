@@ -6,34 +6,37 @@ from shutil import rmtree
 import urllib.parse
 import asyncio
 import aiohttp
+from pathlib import Path
 
 
 site = 'https://www.ncei.noaa.gov/data/local-climatological-data/access/2021/'
-dl_folder = 'downloads'
+DOWNLOADS = Path('downloads')
 check_time = '15:45'
 
 
 def setup_downloads_folder():
     # Remove the downloads directory and contents
     try:
-        rmtree(dl_folder)
+        rmtree(DOWNLOADS)
     except FileNotFoundError:
-        print(f"Directory '{dl_folder}' does not exist, no need to remove.")
+        print(f"Directory '{DOWNLOADS}' does not exist, no need to remove.")
 
     try:
-        os.mkdir(dl_folder)
-        print(f"Directory '{dl_folder}' created successfully.")
+        os.mkdir(DOWNLOADS)
+        print(f"Directory '{DOWNLOADS}' created successfully.")
 
     except FileExistsError:
-        print(f"Directory '{dl_folder}' already exists.")
+        print(f"Directory '{DOWNLOADS}' already exists.")
 
 
 def main():
     setup_downloads_folder()
-    # your code here
+    
     matched_name = find_file_name(check_time)
     print(matched_name)
     if matched_name is not None and len(matched_name) > 0:
+        
+        
         list_of_dfs = [req_file(file_name) for file_name in matched_name]
         combined_df = pd.concat(list_of_dfs, ignore_index=True)
         print(combined_df.head())
@@ -69,7 +72,7 @@ def find_file_name(lookup_time):
 
 def req_file(file_name):
     site_url = urllib.parse.urljoin(site, file_name)
-    file_path = os.path.join(dl_folder, file_name)
+    file_path = DOWNLOADS / file_name
 
     try:
         response = requests.get(site_url)
@@ -89,5 +92,48 @@ def req_file(file_name):
         return None
 
 
+
+#Asynchronous
+async def async_req_file(session, file_name):
+    site_url = urllib.parse.urljoin(site, file_name)
+    file_path = DOWNLOADS / file_name
+
+    async with session.get(site_url) as r:
+        if r.status == 200:
+            content = await r.read()
+            with open(file_path, 'wb') as file:
+                file.write(content)
+            print(f"File '{file_path}' downloaded successfully.")
+            df = pd.read_csv(file_path)
+            # For Data lineage
+            df['source_file'] = file_path
+            df['download_time'] = pd.Timestamp.now()
+            return df
+        else:
+            print(f"Failed to download file. Status code: {r.status}")
+
+async def async_req_file_all(session, file_names):
+    tasks = [async_req_file(session, file_name) for file_name in file_names]
+    return await asyncio.gather(*tasks)
+
+
+#Same as main but async
+async def async_main():
+    async with aiohttp.ClientSession() as session:
+        setup_downloads_folder()
+        
+        matched_name = find_file_name(check_time)
+        print(matched_name)
+        if matched_name is not None and len(matched_name) > 0:
+            list_of_dfs = await async_req_file_all(session, matched_name)
+            combined_df = pd.concat(list_of_dfs, ignore_index=True)
+            print(combined_df.head())
+            print(combined_df['STATION'].value_counts())
+            
+
+        else:
+            print("File not found.")
+
 if __name__ == "__main__":
-    main()
+    #main()
+    asyncio.run(async_main())
