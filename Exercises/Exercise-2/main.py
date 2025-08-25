@@ -4,6 +4,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from shutil import rmtree
 import urllib.parse
+import asyncio
+import aiohttp
 
 
 site = 'https://www.ncei.noaa.gov/data/local-climatological-data/access/2021/'
