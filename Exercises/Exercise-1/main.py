@@ -1,12 +1,14 @@
+import asyncio
+import io
 import os
 import zipfile
-import io
-from shutil import rmtree
 from pathlib import Path
-import asyncio
+from shutil import rmtree
+
 import aiohttp
 
-DL_FOLDER = Path('downloads')
+DL_FOLDER = Path("downloads")
+
 
 # Remove the downloads directory
 def setup_downloads_folder():
@@ -23,6 +25,7 @@ def setup_downloads_folder():
     except FileExistsError:
         print(f"Directory '{DL_FOLDER}' already exists.")
 
+
 domain = "https://divvy-tripdata.s3.amazonaws.com/{file}"
 download_uris = [
     domain.format(file="Divvy_Trips_2018_Q4.zip"),
@@ -34,15 +37,17 @@ download_uris = [
     domain.format(file="Divvy_Trips_2220_Q1.zip"),
 ]
 
+
 async def main():
     # your code here
     setup_downloads_folder()
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as session:  # noqa: SIM117
         async with asyncio.TaskGroup() as tg:
             for url in download_uris:
                 tg.create_task(download_file(session, url))
         # TaskGroup waits and will raise on first exception
-    
+
+
 async def download_file(session, url):
     async with session.get(url) as response:
         if response.status == 200:
@@ -56,12 +61,12 @@ async def download_file(session, url):
         else:
             print(f"Failed to download {url}")
 
-def convert_zip(file_path):
-    
-    #Get file name
-    file_name = file_path.with_suffix('.csv')
 
-    #Create a BytesIO object and read zip file
+def convert_zip(file_path):
+    # Get file name
+    file_name = file_path.with_suffix(".csv")
+
+    # Create a BytesIO object and read zip file
     with open(file_path, "rb") as f:
         content = f.read()
     zip_file = io.BytesIO(content)
@@ -69,10 +74,10 @@ def convert_zip(file_path):
     extract_zips(zip_file, extract_path)
 
 
-
 def extract_zips(zip_file, extract_path):
     with zipfile.ZipFile(zip_file) as z:
         z.extractall(path=extract_path)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
