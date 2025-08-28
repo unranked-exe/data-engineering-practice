@@ -45,6 +45,17 @@ CLEAR_TABLES = (
     "DROP TABLE IF EXISTS accounts CASCADE;"
 )
 
+TEST_ACCOUNTS_TABLE = "SELECT * FROM accounts;"
+TEST_PRODUCTS_TABLE = "SELECT * FROM products;"
+TEST_TRANSACTIONS_TABLE = "SELECT * FROM transactions;"
+
+TEST_TABLES = [
+    TEST_ACCOUNTS_TABLE,
+    TEST_PRODUCTS_TABLE,
+    TEST_TRANSACTIONS_TABLE,
+]
+
+
 list_of_tables = [
     CREATE_ACCOUNTS_TABLE,
     CREATE_PRODUCTS_TABLE,
@@ -62,69 +73,84 @@ def main() -> None:
     pas = "postgres"
     # Establish WRITE connection
     try:
-        w_conn = psycopg2.connect(host=host, database=database, user=user, password=pas)
-        w_cur = w_conn.cursor()
+        conn = psycopg2.connect(host=host, database=database, user=user, password=pas)
+        cur = conn.cursor()
         # Write Connection established
         print("Connection established")
 
         print("Clearing existing tables...")
-        w_cur.execute(CLEAR_TABLES)
-        w_conn.commit()
+        cur.execute(CLEAR_TABLES)
+        conn.commit()
         print("Cleared existing tables...")
         # Definining the tables
         for table in list_of_tables:
-            create_table(w_cur, w_conn, table)
+            create_table(cur, conn, table)
         print("Defined tables:")
         # Importing the CSV data into tables
         for csv_file in csv_list:
-            import_csv_data(w_cur, w_conn, csv_file)
+            import_csv_data(cur, conn, csv_file)
+        print("Imported CSV data into tables")
+        
+        # Testing the tables
+        for test_query in TEST_TABLES:
+            test_tables(cur, conn, test_query)
 
     except psycopg2.Error as e:
         print("Error connecting to the database")
         print(e)
         return
     finally:
-        w_cur.close()
-        w_conn.close()
+        cur.close()
+        conn.close()
         print("Connection closed")
-
-    w_cur.close()
-    w_conn.close()
 
 
 def create_table(
-    w_cur: psycopg2.extensions.cursor,
-    w_conn: psycopg2.extensions.connection,
+    cur: psycopg2.extensions.cursor,
+    conn: psycopg2.extensions.connection,
     create_table_statement: str,
 ) -> None:
     try:
-        w_cur.execute(create_table_statement)
+        cur.execute(create_table_statement)
         print("Table created successfully")
-        w_conn.commit()
+        conn.commit()
     except psycopg2.Error as e:
         print("Error executing query")
         print(e)
         print(e.pgcode)
-        w_conn.rollback()
+        conn.rollback()
 
 
 def import_csv_data(
-    w_cur: psycopg2.extensions.cursor,
-    w_conn: psycopg2.extensions.connection,
+    cur: psycopg2.extensions.cursor,
+    conn: psycopg2.extensions.connection,
     csv_path: Path,
 ) -> None:
     try:
         with csv_path.open() as f:
             next(f)  # Skip header row
-            print(f.readline())
-            w_cur.copy_from(f, csv_path.stem, sep=",")
-            w_conn.commit()
+            cur.copy_from(f, csv_path.stem, sep=",")
+            conn.commit()
             print(f"Data imported successfully from {csv_path} into {csv_path.stem}")
     except psycopg2.Error as e:
         print("Error executing query")
         print(e)
         print(e.pgcode)
-        w_conn.rollback()
+        conn.rollback()
+
+def test_tables(cur: psycopg2.extensions.cursor,
+    conn: psycopg2.extensions.connection,
+    test_query : str) -> None:
+    try:
+        cur.execute(test_query)
+        results = cur.fetchall()
+        for row in results:
+            print(row)
+    except psycopg2.Error as e:
+        print("Error executing query")
+        print(e)
+        print(e.pgcode)
+        conn.rollback()
 
 
 if __name__ == "__main__":
