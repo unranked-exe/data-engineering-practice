@@ -32,8 +32,17 @@ CREATE_TRANSACTIONS_TABLE = (
     "product_code varchar(5) NOT NULL, "
     "product_description text NOT NULL, "
     "quantity int NOT NULL, "
-    "account_id int NOT NULL"
+    "account_id int NOT NULL,"
+
+    "FOREIGN KEY (product_id) REFERENCES products (product_id),"
+    "FOREIGN KEY (account_id) REFERENCES accounts (account_id)"
     ")"
+)
+
+CLEAR_TABLES = (
+    "DROP TABLE IF EXISTS transactions CASCADE;"
+    "DROP TABLE IF EXISTS products CASCADE;"
+    "DROP TABLE IF EXISTS accounts CASCADE;"
 )
 
 list_of_tables = [
@@ -57,6 +66,11 @@ def main() -> None:
         w_cur = w_conn.cursor()
         # Write Connection established
         print("Connection established")
+
+        print("Clearing existing tables...")
+        w_cur.execute(CLEAR_TABLES)
+        w_conn.commit()
+        print("Cleared existing tables...")
         # Definining the tables
         for table in list_of_tables:
             create_table(w_cur, w_conn, table)
